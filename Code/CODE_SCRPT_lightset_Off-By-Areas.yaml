@@ -1,0 +1,136 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# This script takes a Light-Set Label, uses that to lookup the areas associated
+# to that label, and then turns all the lights in those areas OFF.
+# Based on the 'state_helper_map' variable it may also
+# set, or transition, the state of the Light Set in question.
+# This script is also a component of my 'Day-Dim' mini-application.
+
+# ==== Change Log ==============================================================
+# 2025-04-28: Updated to no include keypad buttons b-h in area selection list
+# 2025-04-23: Update lightset_map to the naming conventions
+# 2025-04-07: Added action to turn light-set delay timer off (timer.cancel)
+# 2025-04-01: Works in initial tests
+
+lightset_off_by_areas:
+  alias: Light Set | OFF | By Areas
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* ||
+    Pass in a Light-Set Label. All lights in all Areas that have been ssigned
+    to that Light-Set will be turned off.
+
+  # ==== Params in from calling automation or script ===========================
+  fields:
+    lightset_label:
+      description: Label Key for Day-Dim app usage
+      example: Light Set - Day Dim - Kitchen
+      required: true
+
+  # ==== Internal variables used in this script ================================
+  variables:
+    lightset_to_use: "{{ lightset_label | default('NoLabel')  }}"
+
+    lightset_to_area_map:
+      "NoLabel": "NoAreas"
+      "Light Set - Lset App Test Light Set": "input_text.light_set_lset_app_test_light_set_off_areas"
+      "Light Set - Day Dim": "input_text.ambient_s1_off_areas"
+
+    # This is copy/paste in from CODE_SNIP_Lightset-Map.yaml
+    lightset_map:
+      "NoLabel":
+        state_helper: "NoStateHelper"
+        off_areas_helper: "NoAreas"
+        start_state: "NoSetState"
+        completed_state: "NoSetState"
+
+      "Light-Set - Day-Dim | Test Set":
+        state_helper: "input_select.lightset_test_set_state"
+        off_areas_helper: "input_text.lightset_test_set_off_areas"
+        start_state: "NoSetState"
+        completed_state: "Inactive"
+
+      "Light-Set - Day-Dim | Living Area":
+        state_helper: "input_select.lightset_living_area_state"
+        off_areas_helper: "input_text.lightset_living_area_off_areas"
+        start_state: "NoSetState"
+        completed_state: "Inactive"
+
+      "Light-Set - Day-Dim | Kitchen":
+        state_helper: "input_select.lightset_kitchen_state"
+        off_areas_helper: "input_text.lightset_kitchen_off_areas"
+        start_state: "NoSetState"
+        completed_state: "Inactive"
+
+    lset_areas_helper: "{{ lightset_map[lightset_label].off_areas_helper | default('NoAreas') }}"
+    lset_state_helper: "{{ lightset_map[lightset_label].state_helper | default('NoStateHelper') }}"
+    entry_state: "{{ lightset_map[lightset_label].start_state | default('NoSetState') }}"
+    exit_state: "{{ lightset_map[lightset_label].completed_state | default('NoSetState') }}"
+
+  # ==== Take action ===========================================================
+  sequence:
+    # Turn delay timer off (in case we are invoking this script while the delay
+    # timer is currently running)
+    - alias: "Cancel the delay timer for the light-set"
+      action: script.lightset_timer_off
+      data:
+        lightset_label: "{{ lightset_label }}"
+
+    # If this light set is one that wants us to set a specific state to be
+    # in during the act of turning the light on, set it now.
+    - choose:
+        - conditions: "{{ entry_state != 'NoSetState' }}"
+          sequence:
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "{{ entry_state }}"
+              target:
+                entity_id: "{{ lset_state_helper }}"
+            - delay:
+                hours: 0
+                minutes: 0
+                seconds: 2
+                milliseconds: 0
+
+    # Turn off the lights in the set
+    # NOTE the use of the rejectattr() and regex expression to exclude the
+    # non-load Insteon keypad buttons from this. Keypad buttons meant to be
+    # in-sync with other lights need to have a seperate automation triggered
+    # to toggle the relevant keypad button.
+    - repeat:
+        for_each: >
+          {% set selected_areas = states(lset_areas_helper).split(',') %}
+          {{ expand(
+              selected_areas
+              | map('area_entities')
+              | list
+            )
+            | selectattr('domain', 'in', ['switch', 'light'])
+            | selectattr('state', 'eq', 'on')
+            | rejectattr('entity_id', 'search', 'keypad_button_[b-h]')
+            | map(attribute='entity_id')
+            | list
+          }}
+        sequence:
+          - data:
+              entity_id: "{{ repeat.item }}"
+            service: homeassistant.turn_off
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 1
+              milliseconds: 0
+
+    # If this light set is one that wants us to set a specific state upon
+    # completion of our actions, set it now, just before exit.
+    - choose:
+        - conditions: "{{ exit_state != 'NoSetState' }}"
+          sequence:
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "{{ exit_state }}"
+              target:
+                entity_id: "{{ lset_state_helper }}"
+
+mode: queued
+

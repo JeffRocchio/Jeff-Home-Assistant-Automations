@@ -1,0 +1,38 @@
+alias: Ambient Sensors | State Changed
+description: >-
+  This is part of my handling of changes to ambient light and the day-dim
+  application. This automation catches an ambient light level change for
+  any of the lux sensors and to then calls the 'lightset_assess_conditions' script.
+  <br> **04/25/2025**: Implemented and is working.
+triggers:
+  - trigger: state
+    entity_id:
+      - input_text.ambient_s9_quantized
+      - input_text.ambient_s1_quantized
+      - input_text.ambient_s2_quantized
+    from: null
+    to: null
+conditions: []
+actions:
+  - variables:
+      trigger_map:
+        input_text.ambient_s9_quantized: input_text.ambient_s9_lightset_label
+        input_text.ambient_s1_quantized: input_text.ambient_s1_lightset_label
+        input_text.ambient_s2_quantized: input_text.ambient_s2_lightset_label
+      sensor_label_helper: "{{ trigger_map[trigger.entity_id] }}"
+      lightset_label: "{{ states(sensor_label_helper) | default('NoLightsetLabel') }}"
+    alias: Define Needed Variables
+  - alias: Debug - Show Variables
+    data:
+      name: Lightset Debug
+      message: >
+        VARIABLE: [sensor_label_helper: {{ sensor_label_helper }}]  ||
+        VARIABLE: [lightset_label: {{lightset_label }}]
+    action: logbook.log
+  - action: script.turn_on
+    metadata: {}
+    data:
+      entity_id: script.lightset_assess_conditions
+      variables:
+        lightset_label: "{{ lightset_label }}"
+mode: parallel

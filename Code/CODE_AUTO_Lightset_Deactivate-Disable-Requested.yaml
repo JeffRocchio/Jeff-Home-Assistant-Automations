@@ -1,0 +1,31 @@
+alias: Light Set - Lset App Test Light Set | Deactivate Requested
+description: ""
+triggers:
+  - trigger: state
+    entity_id:
+      - input_button.light_set_lset_app_test_light_set_deactivate
+      - input_button.light_set_lset_app_test_light_set_disable
+    from: null
+    to: null
+conditions: []
+actions:
+  - variables:
+      button_map:
+        input_button.light_set_lset_app_test_light_set_deactivate:
+          target_lightset_label: Light Set - Lset App Test Light Set
+          target_exit_state: Deactivated
+        input_button.light_set_lset_app_test_light_set_disable:
+          target_lightset_label: Light Set - Lset App Test Light Set
+          target_exit_state: Disabled
+      target_lightset_label: "{{ button_map[trigger.entity_id].target_lightset_label }}"
+      target_exit_state: "{{ button_map[trigger.entity_id].target_exit_state }}"
+  - action: script.turn_on
+    metadata: {}
+    data:
+      variables:
+        lightset_label: "{{ target_lightset_label }}"
+        exit_state: "{{ target_exit_state }}"
+    target:
+      entity_id:
+        - script.lightset_deactivate_disable
+mode: parallel

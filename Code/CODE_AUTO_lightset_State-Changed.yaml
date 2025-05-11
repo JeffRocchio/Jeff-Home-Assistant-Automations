@@ -1,0 +1,237 @@
+# 04/26/2025: Fixed error in lightset strings in the trigger_map table.
+# 04/25/2025: Fixed up for new naming of helpers
+# 04/22/2025: Added the 'Inactive' case to support <lightset> | Operational State helper
+# 04/7/2025: First version, running OK.
+# 05/3/2025: Removed Case-4. Mods made to no longer need provision to set Ops State to 'No Change'
+
+
+
+
+alias: lightset | State Changed
+description: >
+  **Membership**: *Lightset Virtual Object* and an element of the Day-Dim App.
+  <br> **Purpose**: React to light-set state changes and route actions to the
+  appropriate  action scripts that are part of the app. <br> **Note-1**: I am
+  using the non-blocking form of calling the routed to scripts in the ''choose''
+  section so that this automation can be called again immediately (i.e., by a
+  different light-set having been triggered). <br> **Note-2**: *mode: queued* is
+  important as the call out to the LED set indicator script is recursive and
+  will fail if mode is single. (Actually it should likely be mode: parallel if
+  ever I use the feature to set a ''start_state'' in the  scripts that turn the
+  lights on and off). <br> **04/26/2025**: Fixed error in lightset strings in
+  the trigger_map table. <br> **04/25/2025**: Fixed up for new naming of
+  helpers. <br>  **04/22/2025**: Added case for ''Inactive'' to set *<lightset>
+  | Operational State* to ''Activate'' <br>  **Documentation**
+  .../HomeAssistant/Documentation/doc_diagrams.odg
+triggers:
+  - trigger: state
+    entity_id:
+      - input_select.lightset_test_set_state
+      - input_select.lightset_kitchen_state
+      - input_select.lightset_living_area_state
+conditions: []
+actions:
+  - variables:
+      trigger_map:
+        input_select.lightset_test_set_state:
+          lightset: Light-Set - Day-Dim | Test Set
+          operational_state_helper: input_select.lightset_test_set_operational_state
+        input_select.lightset_kitchen_state:
+          lightset: Light-Set - Day-Dim | Kitchen
+          operational_state_helper: input_select.lightset_kitchen_operational_state
+        input_select.lightset_living_area_state:
+          lightset: Light-Set - Day-Dim | Living Area
+          operational_state_helper: input_select.lightset_living_area_operational_state
+      lightset: "{{ trigger_map[trigger.entity_id].lightset }}"
+      ops_state_helper: "{{ trigger_map[trigger.entity_id].operational_state_helper }}"
+    alias: Define Needed Variables
+  - alias: Debug - Show Variables
+    data:
+      name: Lightset Debug
+      message: >
+        VARIABLE: [lightset: {{ lightset }}] || VARIABLE: [ops_state_helper: {{
+        ops_state_helper }}] || VALUE: [trigger.entity_id: {{ trigger.entity_id
+        }}] || VALUE: [trigger.to_state.state: {{ trigger.to_state.state }}] ||
+    action: logbook.log
+  - action: script.lightset_set_state_indicators
+    metadata: {}
+    data:
+      changed_helper: "{{ trigger.entity_id }}"
+      new_state: "{{ trigger.to_state.state }}"
+    alias: CALL Script to Set ESPHome LED Indicators for New State
+  - alias: CASE Section | Route to Appropriate Handler Based on New State
+    choose:
+      - alias: CASE-0 State Changed to 'In Process - ON'
+        conditions:
+          - condition: template
+            alias: IF State is In Process - On
+            value_template: "{{ trigger.to_state.state == 'In Process - ON'}}"
+        sequence:
+          - alias: Turn on the Light Set
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_on_by_label
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-1 State Changed to 'Pending - OFF'
+        conditions:
+          - condition: template
+            alias: IF State is Pending - OFF
+            value_template: "{{ trigger.to_state.state == 'Pending - OFF'}}"
+        sequence:
+          - alias: Turn on Delay Timer for Light Set
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_goto_pending_off
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-2 State Changed to 'In Process - OFF'
+        conditions:
+          - condition: template
+            alias: IF State is In Process - OFF
+            value_template: "{{ trigger.to_state.state == 'In Process - OFF'}}"
+        sequence:
+          - alias: Turn off the Light Set
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_off_by_areas
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-3 State Changed to Cancel In Process
+        conditions:
+          - condition: template
+            alias: IF State is Cancel In Process
+            value_template: "{{ trigger.to_state.state == 'Cancel In Process'}}"
+        sequence:
+          - alias: Cancel any active light-set activity
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_cancel
+              variables:
+                lightset_label: "{{ lightset }}"
+mode: queued
+
+# ==============================================================================================
+# 4/26/2025: Fixed error in lightset strings in the trigger_map table.
+# 4/25/2025: Fixed up for new naming of helpers
+# 4/22/2025: Added the 'Inactive' case to support <lightset> | Operational State helper
+# 4/7/2025: First version, running OK.
+
+alias: lightset | State Changed
+description: >
+  **Membership**: *Lightset Virtual Object* and an element of the Day-Dim App.
+  <br> **Purpose**: React to light-set state changes and route actions to the
+  appropriate  action scripts that are part of the app. <br> **Note-1**: I am
+  using the non-blocking form of calling the routed to scripts in the ''choose''
+  section so that this automation can be called again immediately (i.e., by a
+  different light-set having been triggered). <br> **Note-2**: *mode: queued* is
+  important as the call out to the LED set indicator script is recursive and
+  will fail if mode is single. (Actually it should likely be mode: parallel if
+  ever I use the feature to set a ''start_state'' in the  scripts that turn the
+  lights on and off). <br> **04/26/2025**: Fixed error in lightset strings in
+  the trigger_map table. <br> **04/25/2025**: Fixed up for new naming of helpers.
+  <br>  **04/22/2025**: Added case for ''Inactive'' to set
+  *<lightset> | Operational State* to ''Activate'' <br>  **Documentation**
+  .../HomeAssistant/Documentation/doc_diagrams.odg
+triggers:
+  - trigger: state
+    entity_id:
+      - input_select.lightset_test_set_state
+      - input_select.lightset_kitchen_state
+      - input_select.lightset_living_area_state
+conditions: []
+actions:
+  - variables:
+      trigger_map:
+        input_select.lightset_test_set_state:
+          lightset: Light-Set - Day-Dim | Test Set
+          operational_state_helper: input_select.lightset_test_set_operational_state
+        input_select.lightset_kitchen_state:
+          lightset: Light-Set - Day-Dim | Kitchen
+          operational_state_helper: input_select.lightset_kitchen_operational_state
+        input_select.lightset_living_area_state:
+          lightset: Light-Set - Day-Dim | Living Area
+          operational_state_helper: input_select.lightset_living_area_operational_state
+      lightset: "{{ trigger_map[trigger.entity_id].lightset }}"
+      ops_state_helper: "{{ trigger_map[trigger.entity_id].operational_state_helper }}"
+    alias: Define Needed Variables
+  - alias: Debug - Show Variables
+    data:
+      name: Lightset Debug
+      message: >
+        VARIABLE: [lightset: {{ lightset }}] || VARIABLE: [ops_state_helper: {{
+        ops_state_helper }}] || VALUE: [trigger.entity_id: {{ trigger.entity_id
+        }}] || VALUE: [trigger.to_state.state: {{ trigger.to_state.state }}] ||
+    action: logbook.log
+  - action: script.lightset_set_state_indicators
+    metadata: {}
+    data:
+      changed_helper: "{{ trigger.entity_id }}"
+      new_state: "{{ trigger.to_state.state }}"
+    alias: CALL Script to Set ESPHome LED Indicators for New State
+  - alias: CASE Section | Route to Appropriate Handler Based on New State
+    choose:
+      - alias: CASE-0 State Changed to 'In Process - ON'
+        conditions:
+          - condition: template
+            alias: IF State is In Process - On
+            value_template: "{{ trigger.to_state.state == 'In Process - ON'}}"
+        sequence:
+          - alias: Turn on the Light Set
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_on_by_label
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-1 State Changed to 'Pending - OFF'
+        conditions:
+          - condition: template
+            alias: IF State is Pending - OFF
+            value_template: "{{ trigger.to_state.state == 'Pending - OFF'}}"
+        sequence:
+          - alias: Turn on Delay Timer for Light Set
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_goto_pending_off
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-2 State Changed to 'In Process - OFF'
+        conditions:
+          - condition: template
+            alias: IF State is In Process - OFF
+            value_template: "{{ trigger.to_state.state == 'In Process - OFF'}}"
+        sequence:
+          - alias: Turn off the Light Set
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_off_by_areas
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-3 State Changed to Cancel In Process
+        conditions:
+          - condition: template
+            alias: IF State is Cancel In Process
+            value_template: "{{ trigger.to_state.state == 'Cancel In Process'}}"
+        sequence:
+          - alias: Cancel any active light-set activity
+            action: script.turn_on
+            data:
+              entity_id: script.lightset_cancel
+              variables:
+                lightset_label: "{{ lightset }}"
+      - alias: CASE-4 State Changed to 'Inactive' from 'Cancel In Process'
+        conditions:
+          - condition: template
+            alias: IF State went to 'Inactive' from 'Cancel In Process'
+            value_template: >-
+              {{ trigger.to_state.state == 'Inactive' and
+              trigger.from_state.state == 'Cancel In Process'}}
+        sequence:
+          - alias: Set Light-Set's Operational State to 'Activate.'
+            action: input_select.select_option
+            metadata: {}
+            data:
+              option: Activate
+            target:
+              entity_id: "{{ ops_state_helper }}"
+mode: queued

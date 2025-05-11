@@ -1,0 +1,198 @@
+# 05/03/2025: Fixed trigger_map entries.
+
+alias: Lightset | Operational Change Requested
+description: >
+  **Purpose**: Detect when a user has requested to *Activate*, *Cancel*,
+  *Deactivate*, or *Disable* a particular light-set. <br> **Log**-----: <br>
+  2025-04-12: Initial Creation
+triggers:
+  - trigger: state
+    entity_id:
+      - input_select.lightset_kitchen_operational_state
+      - input_select.lightset_living_area_operational_state
+      - input_select.lightset_test_set_operational_state
+    from: null
+    to: null
+conditions: []
+actions:
+  - variables:
+      trigger_map:
+        input_select.lightset_kitchen_operational_state:
+          label: Light-Set - Day-Dim | Kitchen
+          state_helper: input_select.lightset_kitchen_state
+        input_select.lightset_living_area_operational_state:
+          label: Light-Set - Day-Dim | Living Area
+          state_helper: input_select.lightset_living_area_state
+        input_select.lightset_test_set_operational_state:
+          label: Light Set -
+          state_helper: input_select.lightset_test_set_state
+      target_lightset_label: "{{ trigger_map[trigger.entity_id].label }}"
+      target_state_helper: "{{ trigger_map[trigger.entity_id].state_helper }}"
+      target_exit_state: |
+        {% if trigger.to_state.state == 'Activate' %}
+          Inactive
+        {% elif trigger.to_state.state == 'Cancel' %}
+          Cancel In Process
+        {% elif trigger.to_state.state == 'Deactivate' %}
+          Deactivated
+        {% elif trigger.to_state.state == 'Disable' %}
+          Disabled
+        {% else %}
+          unknown
+        {% endif %}
+  - alias: Debug - Show Variables
+    data:
+      name: Lightset Debug
+      message: >
+        lightset_label: {{ target_lightset_label }}  <br> exit_state:
+        {{target_exit_state }}  <br> state_helper: {{ target_state_helper }}
+        <br> Deactivate/Disable Test: {{ target_exit_state == 'Deactivated' or
+        target_exit_state == 'Disabled' }}   target_state_helper.states: {{
+        states(target_state_helper) }}  <br> <br> Reactivate Test: {{
+        target_exit_state == 'Inactive' and states(target_state_helper) in
+        ['Deactivated', 'Disabled'] }}
+    action: logbook.log
+  - alias: CASE-like set of filters and actions to set requested operational state
+    choose:
+      - alias: CASE-1 Request for Deactivate or Disable.
+        conditions:
+          - condition: template
+            value_template: >-
+              {{ target_exit_state == 'Deactivated' or target_exit_state ==
+              'Disabled'}}
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            data:
+              variables:
+                lightset_label: "{{ target_lightset_label }}"
+                exit_state: "{{ target_exit_state }}"
+            target:
+              entity_id:
+                - script.lightset_deactivate_disable
+      - alias: >-
+          CASE-2 Request to Reactivate (meaning move from Deactivated or
+          Disabled to 'Inactive').
+        conditions:
+          condition: template
+          value_template: >-
+            {{ target_exit_state == 'Inactive' and states(target_state_helper)
+            in ['Deactivated', 'Disabled']  }}
+        sequence:
+          - action: input_select.select_option
+            metadata: {}
+            data:
+              option: "{{ target_exit_state }}"
+            target:
+              entity_id: "{{ target_state_helper }}"
+      - alias: CASE-3 Request for Cancel.
+        conditions:
+          condition: template
+          value_template: >
+            {{ target_exit_state == 'Cancel In Process' and
+            states(target_state_helper) != 'Inactive' and
+            states(target_state_helper) != 'Cancel In Process' and
+            states(target_state_helper) != 'Deactivated' and
+            states(target_state_helper) != 'Disabled' }}
+        sequence:
+          - action: input_select.select_option
+            metadata: {}
+            data:
+              option: "{{ target_exit_state }}"
+            target:
+              entity_id: "{{ target_state_helper }}"
+mode: parallel
+
+
+
+
+=========================================================================================
+alias: Lightset | Operational Change Requested
+description: >
+  **Purpose**: Detect when a user has requested to *Activate*, *Cancel*,
+  *Deactivate*, or *Disable* a particular light-set.
+triggers:
+  - trigger: state
+    entity_id:
+      - input_select.light_set_lset_app_test_light_set_operational_state
+    from: null
+    to: null
+conditions: []
+actions:
+  - variables:
+      trigger_map:
+        input_select.light_set_lset_app_test_light_set_operational_state:
+          label: Light Set - Lset App Test Light Set
+          state_helper: input_select.lightset_lset_app_test_set_state
+      target_lightset_label: "{{ trigger_map[trigger.entity_id].label }}"
+      target_state_helper: "{{ trigger_map[trigger.entity_id].state_helper }}"
+      target_exit_state: |
+        {% if trigger.to_state.state == 'Activate' %}
+          Inactive
+        {% elif trigger.to_state.state == 'Cancel' %}
+          Cancel In Process
+        {% elif trigger.to_state.state == 'Deactivate' %}
+          Deactivated
+        {% elif trigger.to_state.state == 'Disable' %}
+          Disabled
+        {% else %}
+          unknown
+        {% endif %}
+  - alias: Debug - Show Variables
+    data:
+      name: Lightset Debug
+      message: >
+        lightset_label: {{ target_lightset_label }}  <br> exit_state:
+        {{target_exit_state }}  <br> state_helper: {{ target_state_helper }}
+        <br> Deactivate/Disable Test: {{ target_exit_state == 'Deactivated' or
+        target_exit_state == 'Disabled' }}   target_state_helper.states: {{
+        states(target_state_helper) }}  <br> <br> Reactivate Test: {{
+        target_exit_state == 'Inactive' and states(target_state_helper) in
+        ['Deactivated', 'Disabled'] }}
+    action: logbook.log
+  - alias: Request for Deactivate or Disable.
+    choose:
+      - conditions:
+          condition: template
+          value_template: >-
+            {{ target_exit_state == 'Deactivated' or target_exit_state ==
+            'Disabled'}}
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            data:
+              variables:
+                lightset_label: "{{ target_lightset_label }}"
+                exit_state: "{{ target_exit_state }}"
+            target:
+              entity_id:
+                - script.lightset_deactivate_disable
+  - alias: >-
+      Request to Reactivate (meaning move from Deactivated or Disabled to
+      'Inactive').
+    choose:
+      - conditions:
+          condition: template
+          value_template: >-
+            {{ target_exit_state == 'Inactive' and states(target_state_helper)
+            in ['Deactivated', 'Disabled']  }}
+        sequence:
+          - action: input_select.select_option
+            metadata: {}
+            data:
+              option: "{{ target_exit_state }}"
+            target:
+              entity_id: "{{ target_state_helper }}"
+  - alias: Request for Cancel.
+    choose:
+      - conditions:
+          condition: template
+          value_template: "{{ target_exit_state == 'Cancel In Process' }}"
+        sequence:
+          - action: input_select.select_option
+            metadata: {}
+            data:
+              option: "{{ target_exit_state }}"
+            target:
+              entity_id: "{{ target_state_helper }}"
+mode: parallel

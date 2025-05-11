@@ -1,0 +1,66 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# This script transitions a light-set into the Pending - OFF state.
+# This script is also a component of my 'Day-Dim' mini-application.
+# ==== Change Log ==============================================================
+# 2025-04-23: Update lightset_map to the naming conventions
+
+lightset_goto_pending_off:
+  alias: Light Set | Goto Pending Off
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* ||
+    A light-set's state was just set to *Pending - OFF* so this
+    script will now do the work of transitioning that light-set into that
+    state. Must pass in the field/variable *lightset_label* which defines the
+    light-set instance to operate on.
+
+  # ==== Params in from calling automation or script ===========================
+  fields:
+    lightset_label:
+      description: Label passed in by caller
+      example: Light Set - Day Dim - Kitchen
+      required: true
+
+  # ==== Internal variables used in this script ================================
+  variables:
+    label_to_act_on: "{{ lightset_label }}"
+
+    # This is copy/paste in from CODE_SNIP_Lightset-Map.yaml
+    lightset_map:
+      "NoLabel":
+        state_helper: "NoStateHelper"
+        lightset_timer_helper: "NoTimer"
+
+      "Light-Set - Day-Dim | Test Set":
+        state_helper: "input_select.lightset_test_set_state"
+        delay_timer_helper: "timer.lightset_test_set_timer"
+
+      "Light-Set - Day-Dim | Living Area":
+        state_helper: "input_select.lightset_amb_s2_state"
+        delay_timer_helper: "timer.lightset_living_area_timer"
+
+      "Light-Set - Day-Dim | Kitchen":
+        state_helper: "input_select.lightset_amb_s1_state"
+        delay_timer_helper: "timer.lightset_kitchen_timer"
+
+    lset_state_helper: "{{ lightset_map[lightset_label].state_helper | default('NoStateHelper') }}"
+    lset_timer_helper: "{{ lightset_map[lightset_label].delay_timer_helper | default('NoTimer') }}"
+
+  # ==== Take action ===========================================================
+
+  # NOTE: Should probably wrap this in a condition block using
+  # "{{ lightset_timer != "NoTimer" }}"
+  sequence:
+    - choose:
+        conditions:
+          - condition: template
+            value_template: >
+              {{ lset_timer_helper != 'NoTimer'  }}
+        sequence:
+          - alias: "Turn on the delay timer for the light-set"
+            action: timer.start
+            metadata: {}
+            data: {}
+            target:
+              entity_id: "{{ lset_timer_helper }}"
+
+mode: single

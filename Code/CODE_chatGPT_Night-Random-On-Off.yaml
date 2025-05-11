@@ -1,0 +1,48 @@
+alias: Away Random Lights by Label
+description: >
+  When I'm away, randomly toggle any light tagged
+  “Light Set – Night Random” between night and bedtime.
+
+trigger:
+  - platform: time_pattern
+    # fire every 5 min
+    minutes: "/5"
+
+variables:
+  # collect all light entities whose customize:label equals our target
+  lights: >-
+    {{ states.light
+       | selectattr('attributes.label','eq','Light Set - Night Random')
+       | map(attribute='entity_id')
+       | list }}
+
+condition:
+  # only when away
+  - condition: state
+    entity_id: input_boolean.away_from_home
+    state: "on"
+
+  # only during “nighttime”
+  - condition: template
+    value_template: >
+      {{ is_state('sensor.daypart','nighttime') }}
+
+  # only before your normal bedtime
+  - condition: template
+    value_template: >
+      {{ now().strftime('%H:%M') < states('input_datetime.bedtime_normal') }}
+
+  # randomness: on average 1-in-5 chance → ~25 min between toggles
+  - condition: template
+    value_template: >
+      {{ (range(0,5) | random) == 0 }}
+
+action:
+  - choose:
+      - conditions: "{{ lights | length > 0 }}"
+        sequence:
+          - service: light.toggle
+            target:
+              entity_id: "{{ lights | random }}"
+
+mode: parallel

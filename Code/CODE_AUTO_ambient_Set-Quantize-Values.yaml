@@ -1,0 +1,70 @@
+alias: Ambient Light | Set Quantize Values
+description: >-
+  This automation 'quantizes' the raw lux values reported by the ambient sensor
+  devices into text values of Bright, Dim, Dark, or Night. These quantized
+  values are what I use to trigger ambient light related automations.
+  <br> **04/25/2025**:  Created this automation to update both of the 'real' sensors.
+triggers:
+  - trigger: time_pattern
+    minutes: /5
+conditions: []
+actions:
+  - repeat:
+      for_each:
+        - sensor: sensor.ambient_light_sensor_s2_bh1750_lux
+          quantized: input_text.ambient_s2_quantized
+          night_lux: input_number.ambient_s2_quant_night_lux
+          dark_lux: input_number.ambient_s2_quant_dark_lux
+          dim_lux: input_number.ambient_s2_quant_dim_lux
+        - sensor: sensor.adafruit_feather_sensors_bh1750_illuminance
+          quantized: input_text.ambient_s1_quantized
+          night_lux: input_number.ambient_s1_quant_night_lux
+          dark_lux: input_number.ambient_s1_quant_dark_lux
+          dim_lux: input_number.ambient_s1_quant_dim_lux
+      sequence:
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: >
+                    {% set lux = states(repeat.item.sensor) | float %} {% set n
+                    = states(repeat.item.night_lux) | float %} {% set d  =
+                    states(repeat.item.dark_lux)  | float %} {{ lux > n and lux
+                    < d }}
+              sequence:
+                - target:
+                    entity_id: "{{ repeat.item.quantized }}"
+                  data:
+                    value: Dark
+                  action: input_text.set_value
+            - conditions:
+                - condition: template
+                  value_template: >
+                    {% set lux = states(repeat.item.sensor) | float %} {% set
+                    d   = states(repeat.item.dark_lux)  | float %} {% set di  =
+                    states(repeat.item.dim_lux)   | float %} {{ lux > d and lux
+                    < di }}
+              sequence:
+                - target:
+                    entity_id: "{{ repeat.item.quantized }}"
+                  data:
+                    value: Dim
+                  action: input_text.set_value
+            - conditions:
+                - condition: template
+                  value_template: >
+                    {% set lux = states(repeat.item.sensor) | float %} {% set
+                    di  = states(repeat.item.dim_lux)   | float %} {{ lux > di
+                    }}
+              sequence:
+                - target:
+                    entity_id: "{{ repeat.item.quantized }}"
+                  data:
+                    value: Bright
+                  action: input_text.set_value
+          default:
+            - target:
+                entity_id: "{{ repeat.item.quantized }}"
+              data:
+                value: Night
+              action: input_text.set_value
+mode: single

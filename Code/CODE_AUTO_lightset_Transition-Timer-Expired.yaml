@@ -1,0 +1,79 @@
+# 04/26/2025: Fixed helper name errors. Added test for valid timer in loopup map.
+# 04/25/2025: Fixed up for new naming of helpers and added in the two non-test light-sets.
+
+alias: lightset | Transition Timer Expired
+description: >
+  **Purpose**: Detect when a light-set's transition delay timer has expired and
+  take appropriate action.
+  <br> **04/26/2025**: Fixed helper name errors. Added test for valid timer in loopup map.
+  <br> **04/25/2025**: Fixed up for new naming of
+  helpers and  added in the two non-test light-sets. <br> **04/12/2025**:
+  Initial Creation
+triggers:
+  - trigger: state
+    entity_id:
+      - timer.lightset_test_set_timer
+      - timer.lightset_kitchen_timer
+      - timer.lightset_living_area_timer
+    from: null
+    to: idle
+    alias: When any Light-Set's timer has finished
+conditions: []
+actions:
+  - variables:
+      trigger_map:
+        timer.lightset_test_set_timer:
+          label: Light-Set - Day-Dim | Test Set
+          state_helper: input_select.lightset_test_set_state
+        timer.lightset_kitchen_timer:
+          label: Light-Set - Day-Dim | Kitchen
+          state_helper: input_select.lightset_test_set_state
+        timer.lightset_living_area_timer:
+          label: Light-Set - Day-Dim | Living Area
+          state_helper: input_select.lightset_test_set_state
+        NoMappedTimer:
+          label: NoLightsetLabel
+          state_helper: NoStateHelper
+      timer_to_act_on: |
+        {% if trigger.entity_id in trigger_map %}
+          {{ trigger.entity_id }}
+        {% else %}
+          NoMappedTimer
+        {% endif %}
+      target_lightset_label: "{{ trigger_map[timer_to_act_on].label }}"
+      target_state_helper: "{{ trigger_map[timer_to_act_on].state_helper }}"
+  - alias: Debug - Show Variables
+    data:
+      name: Lightset Debug
+      message: >
+        VARIABLE: [timer_to_act_on: {{ timer_to_act_on }}] || VARIABLE:
+        [target_lightset_label: {{ target_lightset_label }}] || VARIABLE:
+        [target_state_helper: {{ target_state_helper }}] || VALUE:
+        [trigger.entity_id: {{ trigger.entity_id }} ] || VALUE:
+        [trigger.to_state.state: {{ trigger.to_state.state }} ] ||
+    action: logbook.log
+  - alias: If we have valid timer call assess conditions script, else error
+    choose:
+      - alias: Call the Light-Set Assess Conditions Script.
+        conditions:
+          - condition: template
+            value_template: "{{ timer_to_act_on != 'NoMappedTimer' }}"
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            data:
+              variables:
+                lightset_label: "{{ target_lightset_label }}"
+            target:
+              entity_id:
+                - script.lightset_assess_conditions
+    default:
+      - alias: No timer, report error
+        sequence:
+          - data:
+              name: Automation | lightset Transition Timer Expired - ERROR
+              message: >-
+                Triggering timer - '{{ trigger.entity_id }}' - has no entry in
+                trigger_map lookup table.
+            action: logbook.log
+mode: parallel

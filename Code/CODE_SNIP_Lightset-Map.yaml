@@ -1,0 +1,29 @@
+# This is the data structure that needs to be available to the
+# various automations and scripts that comprise the light-set app.
+# should be modified here, then copy/pasted into those. This is
+# my current best idea on how to kind-of maintain these data values
+# in one place dispite having to hard-code them into each script
+# and automation.
+
+    # This is copy/paste in from CODE_SNIP_Lightset-Map.yaml
+    lightset_map:
+      "Light-Set - Day-Dim | Test Set":
+        ambient_sensor_helper: "input_text.ambient_s9_quantized"
+        state_helper: "input_select.lightset_test_set_state"
+        operational_state_helper: "input_select.lightset_test_set_operational_state"
+        delay_timer_helper: "timer.lightset_test_set_timer"
+        off_areas_helper: "input_text.lightset_test_set_off_areas"
+
+      "Light-Set - Day-Dim | Living Area":
+        ambient_sensor_helper: "input_text.ambient_s2_quantized"
+        state_helper: "input_select.lightset_living_area_state"
+        operational_state_helper: "input_select.lightset_living_area_operational_state"
+        delay_timer_helper: "timer.lightset_living_area_timer"
+        off_areas_helper: "input_text.lightset_living_area_off_areas"
+
+      "Light-Set - Day-Dim | Kitchen":
+        ambient_sensor_helper: "input_text.ambient_s1_quantized"
+        state_helper: "input_select.lightset_kitchen_state"
+        operational_state_helper: "input_select.lightset_kitchen_operational_state"
+        delay_timer_helper: "timer.lightset_kitchen_timer"
+        off_areas_helper: "input_text.lightset_kitchen_off_areas"

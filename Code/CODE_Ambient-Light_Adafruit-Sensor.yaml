@@ -1,0 +1,202 @@
+# ESPHome: Adafruit ESP32-S2 Feather with BH1750 Lux Sensor
+# ==================================================================================================
+# Code and notes for the Adafruit ESP32-S2 Feather with attached BH1750 light sensor
+#
+# Goals:
+#    1. Report current lux reading into Home Assistant once every 5 minutes.
+#    2. Smooth the readings out a bit by using a rolling moving average.
+#    3. Go ahead and report the additional sensors available on the device.
+#
+# Notes:
+#    - ChatGPT provided a lot of help as trying to work out how the .yaml translates into code
+#      and behavior is proving to be a real challenge to me. Existing documentation is quite
+#      difficult to find, navigate, and understand.
+#    - See footnotes below the code.
+#    - CRITICAL: The sensor is on the I2C bus. In the Adafruit design of this board you have to
+#      'turn on' power to the I2C bus by pulling pin-7 high. So you see that in the .yaml code.
+# ==================================================================================================
+
+esphome:
+  name: adafruit-feather-sensors
+  friendly_name: Adafruit Feather Sensors
+
+esp32:
+  board: esp32-s2-saola-1
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "pqc5/rsMYf94OjjAaYk0zE/Jho6FMAQRiStt8XW4Yoo="
+
+ota:
+  - platform: esphome
+    password: "5b0e232364824587fb7aa954fd0e84a8"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Adafruit-Feather-Sensors"
+    password: "tpeeISn2obg1"
+
+captive_portal:
+
+i2c:
+  sda: 3
+  scl: 4
+  frequency: 800kHz
+  id: bus_a
+  setup_priority: 700
+  scan: true
+
+# Must pull pin-7 high to power the I2C bus
+# So configure pin-7 as an output pin, which we pull high at boot
+# See footnote-2
+switch:
+  - platform: gpio
+    name: "I2C Power" # Giving a name to show in HA so I can see it for now
+    pin: 7
+    restore_mode: ALWAYS_ON
+
+sensor:
+  - platform: bh1750
+    name: "BH1750 Illuminance"
+    address: 0x23
+    filters:
+      - median: # See footnote-1
+          window_size: 8
+          send_every: 5
+          send_first_at: 2
+    on_value:
+      then:
+        - logger.log:
+            level: INFO
+            format: "BH1750 reading: %.2f lux"
+            args: [x] # x holds the sensor reading, and gets substituted into the format string like a C printf() statement
+
+  - platform: bme280_i2c
+    i2c_id: bus_a
+    temperature:
+      name: "Temperature"
+      id: bme280_temperature
+      oversampling: 1x
+      accuracy_decimals: 2
+    pressure:
+      name: "Pressure"
+      id: bme280_pressure
+      oversampling: 1x
+    humidity:
+      name: "Humidity"
+      id: bme280_humidity
+      accuracy_decimals: 2
+      oversampling: 16x
+    address: 0x77
+    update_interval: 60s
+
+  - platform: absolute_humidity
+    name: "Absolute Humidity"
+    temperature: bme280_temperature
+    humidity: bme280_humidity
+
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+
+  - platform: internal_temperature
+    name: "Internal Temperature"
+    update_interval: 60s
+
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+    id: up
+
+
+# ==== FOOTNOTE-1 ==================================================================================
+# Goal #1 - Send Lux Reading Once Every 5 Minutes.
+# Goal #2 - Smooth the readings out a bit by using a rolling moving average.
+#
+# Both goals are accomplished together with the combo of how often to take a reading, and by
+# setting the parms of the moving average function I am using.
+#
+# That is: Take a reading only once every minute; then send the running moving average reading
+# once every 5 readings taken. So this behavior translates to Home Assistant receiving a reading
+# once every 5 minutes.
+#
+# This behavior can be seen in the console output that displays right after new firmware has been
+# updated and uploaded - tho note that in the below I was sending every 4 readings, so below we
+# see HA receiving the readings once every 4 minutes. I later changed it to once every 5 readings:
+#
+# [09:04:31][D][sensor:094]: 'BH1750 Illuminance': Sending state 127.45078 lx with 1 decimals of accuracy
+#
+# [09:05:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=121.8lx
+# [09:06:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=120.3lx
+# [09:07:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=118.4lx
+# [09:08:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=108.9lx
+# [09:08:31][D][sensor:094]: 'BH1750 Illuminance': Sending state 121.05560 lx with 1 decimals of accuracy
+# [09:08:31][I][main:319]: BH1750 reading: 121.06 lux
+#
+# [09:09:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=118.7lx
+# [09:10:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=117.8lx
+# [09:11:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=110.7lx
+# [09:12:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=110.5lx
+# [09:12:31][D][sensor:094]: 'BH1750 Illuminance': Sending state 117.82971 lx with 1 decimals of accuracy
+# [09:12:31][I][main:319]: BH1750 reading: 117.83 lux
+#
+# [09:13:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=112.6lx
+# [09:14:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=91.3lx
+# [09:15:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=89.5lx
+# [09:16:31][D][bh1750.sensor:159]: 'BH1750 Illuminance': Got illuminance=92.1lx
+# [09:16:31][D][sensor:094]: 'BH1750 Illuminance': Sending state 110.47243 lx with 1 decimals of accuracy
+# [09:16:31][I][main:319]: BH1750 reading: 110.47 lux
+
+
+# ==== FOOTNOTE-2 ==================================================================================
+# Turn On i2C Power
+#
+# We must pull pin-7 high in order to tell the Adafruit board to apply power to the I2C bus, on which
+# the sensors are connected. This is done this way so that I2C bus power can be turned on/off in
+# software for power management if running on a battery. E.g., when in deep sleep mode you want the
+# I2C to power down.
+#
+# The below approach also worked to pull pin-7 high; but it exposed a switchable switch in HA; and
+# really I couldn't really quite grasp what it was doing. I wanted a simpler, cleaner, way to
+# pull pin-7 high. So I have gone with the approach in the current code. BUT I do think the below
+# approach was to accomodate going into and out of deep sleep mode. I *think* the
+# restore_mode: RESTORE_DEFAULT_ON declaration in the switch configuration means that the switch
+# would be turned off while sleeping, but then get automatically turned back on when 'restoring'
+# from deep sleep. And so then, in that mode you would also have to be sure to turn the switch on
+# at boot. Maybe if you set it up this way, but just don't give a name to the switch, it would
+# work as desired, but not show up in HA as something you could turn on/off. (Also note that in
+# HA this structure always showed this switch as being in the OFF state; for reasons I can't figure
+# out.)
+#
+# At top of the yaml:
+
+esphome:
+  name: adafruit-feather-sensors
+  friendly_name: Adafruit Feather Sensors
+  on_boot:
+    priority: 801
+    then:
+      - switch.turn_on: I2C_POWER # Important, not working without
+
+# ... <snip>
+
+# Define an 'always on' switch that pulls pin-7 high.
+switch:
+  - platform: gpio
+    id: I2C_POWER
+    restore_mode: RESTORE_DEFAULT_ON
+    pin:
+      number: 7
+  - platform: restart
+    name: restart switch
+

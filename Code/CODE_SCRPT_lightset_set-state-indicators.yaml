@@ -1,0 +1,143 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# This script takes a Light Set Key (a Helper entity) and sets it's indicator
+# LED as appropriate to indicate the current state of the light-set.
+# This script is also a component of my 'Day-Dim' mini-application.
+
+# ==== Change Log ==============================================================
+# 2025-04-23: Update lightset_map to the naming conventions
+# 2025-04-13: Added setting of the Operational State Helper
+# 2025-04-01: Works in initial tests
+
+lightset_set_state_indicators:
+  alias: Light Set | Set State Indicators
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* ||
+    **Purpose**: Set both the LED indicators and the light-set's
+    *Operational State* helper option-value when Light Set states change. <br>
+    **Note**: This script needs to be called by an automation that
+    triggers on state change to the light set state helpers.
+    The calling automation must pass in the variables: 'changed_helper'
+    and 'new_state.'
+
+  fields:
+    changed_helper:
+      description: >
+        Which Light Set state helper triggered the automation that
+        called this script?
+      required: true
+    new_state:
+      description: "The new state of the Light Set state helper"
+      required: true
+
+  variables:
+    # Map each input_select helper to its associated LED entity.
+    lightset_map:
+      "input_select.lightset_test_set_state":
+        indicator: light.poc_pico_w_led_on_pin_18
+        operational_state_helper: "input_select.lightset_test_set_operational_state"
+      "input_select.lightset_kitchen_state":
+        indicator: light.poc_pico_w_led_on_pin_18
+        operational_state_helper: "input_select.lightset_kitchen_operational_state"
+      "input_select.lightset_living_area_state":
+        indicator: light.poc_pico_w_led_on_pin_16
+        operational_state_helper: "input_select.lightset_living_area_operational_state"
+
+    # For each possible state, specify whether the LED should be lit (True/False),
+    # which effect to use, and which Ops-State Value to use.
+    effect_map:
+      "Inactive":
+        lit: false
+        effect: "NoEffect"
+        ops_state: "Activate"
+      "In Process - ON":
+        lit: true
+        effect: "Fast Pulse"
+        ops_state: "Activate"
+      "Idle":
+        lit: true
+        effect: "NoEffect"
+        ops_state: "Activate"
+      "Pending - OFF":
+        lit: true
+        effect: "Slow Pulse"
+        ops_state: "Activate"
+      "In Process - OFF":
+        lit: true
+        effect: "Fast Pulse"
+        ops_state: "Activate"
+      "Cancel In Process":
+        lit: true
+        effect: "Fast Pulse"
+        ops_state: "Cancel"
+      "Deactivated":
+        lit: false
+        effect: "NoEffect"
+        ops_state: "Deactivate"
+      "Disabled":
+        lit: false
+        effect: "NoEffect"
+        ops_state: "Disabled"
+
+    # Pull the correct 'lit' and 'effect' from effect_map
+    led_on: "{{ effect_map[new_state].lit | default(false) }}"
+    use_effect: "{{ effect_map[new_state].effect | default('NoEffect') }}"
+
+    # Identify which LED entity to target based on the changed_helper
+    target_entity: "{{ lightset_map[changed_helper].indicator }}"
+
+    # Pull appropriate Ops-State Value from the map
+    ops_state_helper: "{{ lightset_map[changed_helper].operational_state_helper | default('NoOpsStateHelper') }}"
+    target_ops_state: "{{ effect_map[new_state].ops_state | default('NoOpsState') }}"
+
+  sequence:
+    # Write log entry for debugging
+    - alias: Debug - Show Variable Values in Trace
+      service: logbook.log
+      data:
+        name: Lightset Debug
+        message: >
+          FIELD RECEIVED: [changed_helper: {{ changed_helper }}] ||
+          FIELD RECEIVED: [{{ new_state }}] ||
+          VARIABLE [ops_state_helper: {{ ops_state_helper }}] ||
+          VARIABLE [target_ops_state: {{ target_ops_state }}] ||
+
+    # Set the Ops State Value
+    - choose:
+        - conditions:
+            - condition: template
+              value_template: >
+                {{ target_ops_state != 'NoOpsState'
+                and ops_state_helper != 'NoOpsStateHelper' }}
+          sequence:
+            - service: input_select.select_option
+              data:
+                option: "{{ target_ops_state }}"
+              target:
+                entity_id: "{{ ops_state_helper }}"
+
+      # Set the LED
+    - choose:
+        - conditions: "{{ led_on }}"
+          sequence:
+            - service: light.turn_off # 'Reset' any effect currently running
+              data:
+                entity_id: "{{ target_entity }}"
+            - choose:
+                # There isn't any actual 'None' effect, so test if 'None' and
+                # don't use effect if it is None.
+                - conditions: "{{ use_effect != 'NoEffect' }}"
+                  sequence:
+                    - service: light.turn_on
+                      data:
+                        entity_id: "{{ target_entity }}"
+                        effect: "{{ use_effect }}"
+              default:
+                - service: light.turn_on
+                  data:
+                    entity_id: "{{ target_entity }}"
+      default:
+        - service: light.turn_off
+          data:
+            entity_id: "{{ target_entity }}"
+
+mode: parallel

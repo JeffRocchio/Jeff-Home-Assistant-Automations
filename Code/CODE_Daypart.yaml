@@ -1,0 +1,49 @@
+# Template Sensor: Daypart
+#
+# Intention is for this 'sensor' to represent the current portion of the day/night. That is,
+#    - Morning
+#    - Day
+#    - Evening
+#    - Night
+#
+# I am basing this on the Sun object, using the sun's current elevation above the horizon. This way
+# it automatically accounts for the seasonal variation in terms of day-length.
+#
+# This sensor is used in concert with light sensors to drive automated actions such as, e.g.,
+# triggering the 'Evening Dim' set of lights to turn on.
+#
+# ==================================================================================================
+# Created: 02/16/2025.
+# --------------------------------------------------------------------------------------------------
+#
+# Day Part Sensor
+# Using the Sun object, determine which part of the day we are in.
+# See documentation at /Code/code_Daypart.yaml
+- sensor:
+    - name: "Daypart"
+      unique_id: "bca90b7b-da39-4366-956d-cd3c2bc96eb6"
+      state: >
+        {% set elevation = state_attr('sun.sun', 'elevation') | float %}
+        {% set hour = now().hour %}
+
+        {% set amElvBegin = (this.attributes.amElvBegin if this.attributes and 'amElvBegin' in this.attributes else -3.0) | float %}
+        {% set dayElvBegin = (this.attributes.dayElvBegin if this.attributes and 'dayElvBegin' in this.attributes else 8.0) | float %}
+        {% set pmElvBegin = (this.attributes.pmElvBegin if this.attributes and 'pmElvBegin' in this.attributes else 3.0) | float %}
+        {% set nightElvBegin = (this.attributes.nightElvBegin if this.attributes and 'nightElvBegin' in this.attributes else -6.0) | float %}
+
+        {% if amElvBegin < elevation < dayElvBegin and hour < 12 %}
+          Morning
+        {% elif elevation > dayElvBegin or (elevation > pmElvBegin and hour >= 12) %}
+          Day
+        {% elif pmElvBegin >= elevation > nightElvBegin and hour >= 12 %}
+          Evening
+        {% elif elevation <= nightElvBegin or (elevation < amElvBegin and hour <= 0) %}
+          Night
+        {% else %}
+          Unknown
+        {% endif %}
+      attributes:
+        amElvBegin: "-3.0"
+        dayElvBegin: "8.0"
+        pmElvBegin: "3.0"
+        nightElvBegin: "-6.0"

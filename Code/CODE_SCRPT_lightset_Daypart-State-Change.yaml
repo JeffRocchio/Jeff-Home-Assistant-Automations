@@ -1,0 +1,87 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 05/10/2025: Implemented new version of 'lightset_list' structure.
+# 05/04/2025: Initial creation.
+lightset_daypart_state_change:
+  alias: Light Set | Daypart State Change
+  description: >-
+    **Member Of**: *Light-Set / Day-Dim App.* ||
+    **Purpose**: Upon the occurance of a change in state to the Daypart
+    sensor, force a call to the 'lightset_Assess-Conditions' script
+    for each sensor's light-set so that Daypart transitiions will be cause
+    the appropriate day-dim actions to occur.
+    **Note**: This script needs to be called by an automation that
+    triggers on the appropriate Daypart state changes. The calling automation
+    must pass in the variable: 'new_state'
+
+  fields:
+    new_state:
+      description: "The new state of the Daypart sensor"
+      required: true
+
+  variables:
+    # The list below is defined in the form that it is based on ChatGPT:
+    # Home Assistant’s template engine really wants a plain YAML list in
+    # for_each, not a dict, and it won’t magically turn your map’s keys into
+    # one for you. The most fool-proof pattern is to define your light-sets as
+    # a list of objects up front, then loop over that list:
+    lightset_list:
+      - label: "Light-Set - Day-Dim | Test Set"
+        state_helper: input_select.lightset_test_set_state
+
+      - label: "Light-Set - Day-Dim | Living Area"
+        state_helper: input_select.lightset_living_area_state
+
+      - label: "Light-Set - Day-Dim | Kitchen"
+        state_helper: input_select.lightset_kitchen_state
+
+  sequence:
+    - alias: Take appropriate action based on new Daypart state
+      choose:
+        # ----CASE-1 ------
+        - alias: 1. Daypart went to Day
+          conditions:
+            - condition: template
+              value_template: >
+                {{ new_state == 'Day' }}
+          sequence:
+            - alias: Call the Access Conditions script for each label in the list
+              repeat:
+                for_each: "{{ lightset_list }}"
+                sequence:
+                  - action: script.turn_on
+                    metadata: {}
+                    data:
+                      entity_id: script.lightset_assess_conditions
+                      variables:
+                        lightset_label: "{{ repeat.item.label }}"
+                  - delay:
+                      hours: 0
+                      minutes: 1
+                      seconds: 2
+                      milliseconds: 0
+
+        # ----CASE-2 ------
+        - alias: 2. Daypart went to Night
+          conditions:
+            - condition: template
+              value_template: >
+                {{ new_state == 'Night' }}
+          sequence:
+            - alias: Reset any Deactivated state for each label in the list
+              repeat:
+                for_each: "{{ lightset_list }}"
+                sequence:
+                  - action: input_select.select_option
+                    metadata: {}
+                    data:
+                      option: "Inactive"
+                    target:
+                      entity_id: "{{ repeat.item.state_helper }}"
+                  - delay:
+                      hours: 0
+                      minutes: 1
+                      seconds: 2
+                      milliseconds: 0
+
+mode: single

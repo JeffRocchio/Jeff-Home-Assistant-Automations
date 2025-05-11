@@ -1,0 +1,62 @@
+FROM: @ https://www.home-assistant.io/installation/linux,
+Platform installation || Installation with Docker
+
+docker run -d \
+  --name homeassistant \
+  --privileged \
+  --restart=unless-stopped \
+  -e TZ=US/Eastern \
+  -v /etc/docker:/config \
+  -v /run/dbus:/run/dbus:ro \
+  --network=host \
+  ghcr.io/home-assistant/home-assistant:stable
+
+Result of Running the above in bash:
+jroc@jeffFedora:~/Dropbox/projects/HomeAssistant$ docker run -d \
+  --name homeassistant \
+  --privileged \
+  --restart=unless-stopped \
+  -e TZ=US/Eastern \
+  -v /etc/docker:/config \
+  -v /run/dbus:/run/dbus:ro \
+  --network=host \
+  ghcr.io/home-assistant/home-assistant:stable
+Unable to find image 'ghcr.io/home-assistant/home-assistant:stable' locally
+stable: Pulling from home-assistant/home-assistant
+43c4264eed91: Pull complete
+9cba33477502: Pull complete
+213f464ef742: Pull complete
+f5410cb7ef12: Pull complete
+10b388a565c3: Pull complete
+526366463959: Pull complete
+d33004b14ed8: Pull complete
+ef1fb0507653: Pull complete
+76e41c8cf899: Pull complete
+1f28fabf3563: Pull complete
+8fb1380efda9: Pull complete
+4f4fb700ef54: Pull complete
+3ddd23dda392: Pull complete
+2e78ab47aff6: Pull complete
+ff0cd7c1b2e1: Pull complete
+3034d82e6fb1: Pull complete
+d1f58fb07b44: Pull complete
+eaedfeba79d7: Pull complete
+b6abd334ad0a: Pull complete
+cd4162a0c708: Pull complete
+aa58c5d0e623: Pull complete
+eea0b1d3e384: Pull complete
+55da00992bd3: Pull complete
+2c7fd29112f1: Pull complete
+378f34fc31c5: Pull complete
+d69082f1f97f: Pull complete
+e1d0815da6f8: Pull complete
+2b9f3a430f59: Pull complete
+49cecd12ea61: Pull complete
+fb62dcfb2e0d: Pull complete
+a5dfb3042edb: Pull complete
+4f4d8eab57df: Pull complete
+Digest: sha256:132ef461504be5c5ebd6e34e5d3fb3d7958bb6758a5136107eea9f84c299254a
+Status: Downloaded newer image for ghcr.io/home-assistant/home-assistant:stable
+d5c64948ff79b6705ec62ac60d9b463fc5d884e4a9704533034f03684280d217
+jroc@jeffFedora:~/Dropbox/projects/HomeAssistant$
+

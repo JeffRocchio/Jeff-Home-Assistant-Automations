@@ -1,0 +1,195 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-04-26: Fixed an error in the lightset_map state_helper strings
+# 2025-04-23: Update lightset_map to the naming conventions
+# 2025-04-20: Completed all cases and performed simple validation tests
+# 2025-04-16: Started to refactor per ChatGPT best practice for CASE-like structure
+# 2025-04-12: Started on Development
+
+lightset_assess_conditions:
+  alias: Light Set | Assess Conditions
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: For a given light-set, assess current conditions and take
+    appropriate actions to transition it into an appropriate new state.
+    **Requirements**: The calling automation must pass in the variables: <br>
+    - 'lightset_label.' <br>
+    **Documentation**: See sequence diagram *lightset Assess Conditions *
+
+  # ==== Params in from calling automation or script ===========================
+  fields:
+    lightset_label:
+      description: Label passed in by caller
+      example: Light Set - Day Dim - Kitchen
+      required: true
+
+  # ==== Internal variables used in this script ================================
+  variables:
+    # This is copy/paste in from CODE_SNIP_Lightset-Map.yaml
+    lightset_map:
+      "Light-Set - Day-Dim | Test Set":
+        ambient_sensor_helper: "input_text.ambient_s9_quantized"
+        state_helper: "input_select.lightset_test_set_state"
+        operational_state_helper: "input_select.lightset_test_set_operational_state"
+        delay_timer_helper: "timer.lightset_test_set_timer"
+        off_areas_helper: "input_text.lightset_test_set_off_areas"
+
+      "Light-Set - Day-Dim | Living Area":
+        ambient_sensor_helper: "input_text.ambient_s2_quantized"
+        state_helper: "input_select.lightset_living_area_state"
+        operational_state_helper: "input_select.lightset_living_area_operational_state"
+        delay_timer_helper: "timer.lightset_living_area_timer"
+        off_areas_helper: "input_text.lightset_living_area_off_areas"
+
+      "Light-Set - Day-Dim | Kitchen":
+        ambient_sensor_helper: "input_text.ambient_s1_quantized"
+        state_helper: "input_select.lightset_kitchen_state"
+        operational_state_helper: "input_select.lightset_kitchen_operational_state"
+        delay_timer_helper: "timer.lightset_kitchen_timer"
+        off_areas_helper: "input_text.lightset_kitchen_off_areas"
+
+      "NoLightsetLabel": # <- In case bad label string passed in
+        ambient_sensor_helper: "NoSensor"
+        state_helper: "NoStateHelper"
+        operational_state_helper: "NoOpsStateHelper"
+        delay_timer_helper: "NoTimerHelper"
+        off_areas_helper: "NoOffAreasHelper"
+
+    label_to_act_on: >-
+      {% if lightset_label in lightset_map %}
+        {{ lightset_label }}
+      {% else %}
+        NoLightsetLabel
+      {% endif %}
+    lset_state_helper: "{{ lightset_map[label_to_act_on].state_helper }}"
+    lset_operational_state_helper: "{{ lightset_map[label_to_act_on].operational_state_helper }}"
+    lset_delay_timer_helper: "{{ lightset_map[label_to_act_on].delay_timer_helper }}"
+    lset_ambient_sensor_helper: "{{ lightset_map[label_to_act_on].ambient_sensor_helper }}"
+    lset_current_state: "{{ states(lset_state_helper) }}"
+    ambient: "{{ states(lset_ambient_sensor_helper) }}"
+    daypart: "{{ states('sensor.daypart') }}"
+    timer_state: "{{ states(lset_delay_timer_helper) }}"
+
+  sequence:
+    # Write log entrys for debugging
+    - alias: Debug - Show Variable Values in Trace
+      service: logbook.log
+      data:
+        name: Lightset Debug
+        entity_id: script.lightset_assess_conditions
+        domain: script
+        message: >
+          FILED RECEIVED: [{{ lightset_label }}] ||
+          VARIABLE [label_to_act_on: {{ label_to_act_on }}] ||
+          VARIABLE [lset_state_helper: {{ lset_state_helper }}] ||
+          VARIABLE [lset_operational_state_helper: {{ lset_operational_state_helper }}] ||
+          VARIABLE [lset_delay_timer_helper: {{ lset_delay_timer_helper }}] ||
+          VARIABLE [lset_ambient_sensor_helper: {{ lset_ambient_sensor_helper }}] ||
+          VALUE [states(lset_ambient_sensor_helper): {{ states(lset_ambient_sensor_helper) }}] ||
+          VALUE: [input_text.ambient_s2_quantized: {{ states('input_text.ambient_s2_quantized') }}] ||
+          VARIABLE [lset_current_state: {{ lset_current_state }}] ||
+          VARIABLE [ambient: {{ ambient }}] ||
+          VARIABLE [daypart: {{ daypart }}] ||
+          VARIABLE [timer_state: {{ timer_state }}] ||
+          VALUE [states(lset_delay_timer_helper): {{ states(lset_delay_timer_helper) }}] ||
+
+    - alias: Debug - Debug CASE-2 Logic Test
+      service: logbook.log
+      data:
+        name: Debug Conditional Test
+        message: >
+          [timer_state == 'idle': {{ timer_state == 'idle' }}] ||
+          [states(sensor.daypart) == 'Day': {{ states('sensor.daypart') == 'Day' }}] ||
+          [lset_current_state == 'Pending - OFF': {{ lset_current_state == 'Pending - OFF' }}] ||
+          FULL TEST of value_template: >
+                {{ timer_state == 'idle'
+                and ambient == 'Bright'
+                and lset_current_state == 'Pending - OFF' }}
+
+      # Condition Tests/Filter
+    - alias: Test conditions and take appropriate action
+      choose:
+        # ----CASE-1 ------
+        - alias: 1. Time to reactivate the light-set for the next day
+          conditions:
+            - condition: template
+              value_template: >
+                {{ lset_current_state == 'Deactivated'
+                and daypart == 'Night' }}
+          sequence:
+            # Set the ops state helper and another automation will take it from there
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "Activate"
+              target:
+                entity_id: "{{ lset_operational_state_helper }}"
+
+        # ----CASE-2 ------
+        - alias: 2. Light went 'not Bright' during the daytime and Disabled is False
+          conditions:
+            - condition: template
+              value_template: >
+                {{ ambient != 'Bright'
+                and daypart == 'Day'
+                and lset_current_state == 'Inactive' }}
+          sequence:
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "In Process - ON"
+              target:
+                entity_id: "{{ lset_state_helper }}"
+
+        # ----CASE-3 ------
+        - alias: 3. Light went 'Bright' during the daytime while in 'Idle' state
+          conditions:
+            - condition: template
+              value_template: >
+                {{ ambient == 'Bright'
+                and daypart == 'Day'
+                and lset_current_state == 'Idle' }}
+          sequence:
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "Pending - OFF"
+              target:
+                entity_id: "{{ lset_state_helper }}"
+
+        # ----CASE-4 ------
+        - alias: 4. 'Not Bright' happened while Transition Timer running
+          conditions:
+            - condition: template
+              value_template: >
+                {{ ambient != 'Bright'
+                and lset_current_state == 'Pending - OFF' }}
+          sequence:
+            - action: script.lightset_timer_off
+              metadata: {}
+              data:
+                lightset_label: "{{ label_to_act_on }}"
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "Idle"
+              target:
+                entity_id: "{{ lset_state_helper }}"
+
+        # ----CASE-5 ------
+        - alias: 5. Transition timer from 'went Bright' event has now expired, and it is still 'Bright'
+          conditions:
+            - condition: template
+              value_template: >
+                {{ timer_state == 'idle'
+                and ambient == 'Bright'
+                and lset_current_state == 'Pending - OFF' }}
+          sequence:
+            - action: input_select.select_option
+              metadata: {}
+              data:
+                option: "In Process - OFF"
+              target:
+                entity_id: "{{ lset_state_helper }}"
+
+mode: parallel

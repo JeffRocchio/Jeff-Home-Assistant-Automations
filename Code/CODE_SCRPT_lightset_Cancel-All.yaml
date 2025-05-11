@@ -1,0 +1,89 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-05-10: Initial Creation
+
+lightset_cancel_all:
+  alias: Light Set | Cancel All
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: Cancel any in-process activity for all lightsets
+    If any lights are currently on, leave them on. <br>
+    **Notes**: This script is **not** to be called from the *assess conditions*
+    script nor from the *state changed* script. The state of the light-set
+    when this script is called can be anything. This script will
+    call the lightset-cancel script once for each lightset.
+    **Documentation**: See sequence diagram *lightset Cancel All*
+
+  # ==== Params in from calling automation or script ===========================
+  # No input fields required
+
+  # ==== Internal variables used in this script ================================
+  variables:
+    # The list below is defined in the form that it is based on ChatGPT:
+    # Home Assistant’s template engine really wants a plain YAML list in
+    # for_each, not a dict, and it won’t magically turn your map’s keys into
+    # one for you. The most fool-proof pattern is to define your light-sets as
+    # a list of objects up front, then loop over that list:
+    lightset_list:
+      - label: "Light-Set - Day-Dim | Test Set"
+        state_helper: input_select.lightset_test_set_state
+
+      - label: "Light-Set - Day-Dim | Living Area"
+        state_helper: input_select.lightset_living_area_state
+
+      - label: "Light-Set - Day-Dim | Kitchen"
+        state_helper: input_select.lightset_kitchen_state
+
+  sequence:
+    # Terminate any lights On/Off scripts that are in process
+    - alias: IF lights-on script is running, stop it
+      choose:
+        conditions: "{{ is_state('script.lightset_on_by_label', 'on') }}"
+        sequence:
+          - service: script.turn_off
+            target:
+              entity_id: script.lightset_on_by_label
+
+    - alias: IF lights-off script is running, stop it
+      choose:
+        - conditions: "{{ is_state('script.lightset_off_by_areas', 'on') }}"
+          sequence:
+            - service: script.turn_off
+              target:
+                entity_id: script.lightset_off_by_areas
+
+    # LOOP over each lightset
+    - alias: LOOP through each lightset and cancel any running activity.
+      repeat:
+        for_each: "{{ lightset_list }}"
+        sequence:
+          # DEBUG LOG ENTRY
+          - alias: Debug - Log label that script received
+            service: logbook.log
+            data:
+              name: Lightset Debug
+              message: >
+                LIGHTSET: {{ repeat.item.label }}
+                STATE: "{{ states(repeat.item.state_helper) }}"
+
+          - alias: START CASE BLOCK - Take action based on current state of lightset
+            choose:
+              # CASE-1:
+              - alias: IF Cancel already running, wait for it to finish
+                conditions: "{{ states(repeat.item.state_helper) == 'Cancel In Process' }}"
+                sequence:
+                  - wait_template: "{{ states(repeat.item.state_helper) == 'Inactive' }}"
+
+              # CASE-2:
+              - alias: IF lightset otherwise active, invoke lightset-cancel script
+                conditions: "{{ states(repeat.item.state_helper) not in ['Inactive', 'Cancel In Process', 'Deactivated', 'Disabled'] }}"
+                sequence:
+                  - action: input_select.select_option
+                    metadata: {}
+                    data:
+                      option: "Cancel In Process"
+                    target:
+                      entity_id: "{{ repeat.item.state_helper }}"
+                  - wait_template: "{{ states(repeat.item.state_helper) == 'Inactive' }}"
+
+mode: parallel
