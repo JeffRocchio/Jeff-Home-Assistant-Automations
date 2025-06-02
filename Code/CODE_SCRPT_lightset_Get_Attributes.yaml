@@ -1,0 +1,59 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-05-27: Works in initial tests
+
+lightset_get_attributes:
+  alias: Lightset - Get Attributes For Given Lightset
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: Act as a 'getter' function to retreive the configuration
+    attributes for a given light-set. This can be called by any script and
+    prevents me from having to hard-code a light-set's static attributes into
+    each script seperately.
+
+  mode: parallel
+
+  fields:
+    lightset_label:
+      required: true
+    attribute_names:
+      required: true
+      description: >
+        A list of strings representing the names of the attributes to retrieve
+        for the lightset (e.g., ["ambient_sensor_helper", "state_helper"]).
+
+  sequence:
+    # LOG ENTRY
+    - alias: DEBUG - Passed in Fields
+      service: logbook.log
+      data:
+        name: LIGHT-SET LABEL FIELD
+        message: >
+          LIGHTSET: {{ lightset_label }}
+
+    - variables:
+        # Read in the list of light-set attribute dictionaries
+        lightset_map: !include ../globals/GLOBAL_lightset_map.yaml
+
+        # Get the sub-dictionary for the requested label,
+        lightset_entry: >
+          {{ lightset_map[lightset_label] | default({}) }}
+
+        # Build a Dictionary that we will return to the caller.
+        # Declare a new Dictionary; then iterate over each key in the passed-in
+        # attribute_names field, pulling the value that matches up to that key
+        # from the above lightset_entry list item (which itself is really the
+        # dictionary for the light-set of interest). In so doing this builds
+        # out the new dictionary such that it will contain an entry for each
+        # attribute that was requested in the passed-in attribute_names field.
+        # Per chatGPT: "...build the dictionary using Jinja's dict merging trick
+        # with namespace:"
+        results: >
+          {% set ns = namespace(result = {}) %}
+          {% for key in attribute_names %}
+            {% set ns.result = dict(ns.result, **{ key: lightset_entry[key] if lightset_entry and key in lightset_entry else 'UNDEFINED' }) %}
+          {% endfor %}
+          {{ ns.result }}
+
+    - stop:
+      response_variable: results

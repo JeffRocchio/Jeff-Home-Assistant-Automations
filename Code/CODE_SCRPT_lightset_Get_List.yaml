@@ -1,0 +1,316 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-06-01: This will not work. There just isn't any way to convert a
+#             dictionary to a list object and have it returned, as a list
+#             object in a response_variable.
+#             So I have abandoned this approach.
+#             See lightset_Get_All.yaml instead.
+
+lightset_get_list:
+  alias: Lightset - Get List of All Lightsets
+  description: >
+    **ABANDONED** (2025-06-01). Neither I, nor ChatGPT, nor Gemini-AI could
+    figure out a way to get this working. There doesn't seem to be any way
+    to convert a Dictionary into a List and return it as a List object in a
+    response_variable. No matter what you try, at best it will only return
+    a 'wrapper' structure - which I cannot use as a List object in the
+    receiving script. <br>
+    See instead *Lightset - Get the Dictionary of All Lightsets* instead. <br>
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: Act as a 'getter' function to retrieve all light-sets as
+    a list. This is useful for iterating over all lightsets (e.g., to cancel
+    all timers, reset states, etc.).
+
+  mode: parallel
+
+  variables:
+    lightset_map: !include ../globals/GLOBAL_lightset_map.yaml
+    lightset_list: !include ../globals/GLOBAL_lightset_list.yaml
+
+    dummy_list: ["first", "second"]
+
+    dummy_list2:
+      - first
+      - second
+      - third
+
+    # The below assign what certainly looks like a list to the variable
+    # return_list. But if you inspect it's TYPEOF you'll see:
+    # 'TYPEOF return_list: Wrapper' I cannot find a way to coerce it into
+    # 'list' object. Even tho this syntax will actually create a list object
+    # when used as the selector in a Repeat for_next block.
+    return_list: "{{ lightset_map.items() | list }}"
+
+    # # Does not work.
+    # return_list_a: >
+    #   {% set temp_list = [] %}
+    #   {% for key, value in lightset_map.items() %}
+    #     {% set _ = temp_list.append({ 'name': key } | combine(value)) %}
+    #   {% endfor %}
+    #   {{ temp_list }}
+
+    # # Does not work. It does create a string object that looks exactly
+    # # like a list, but it is not a 'list' TYPEOF object.
+    # return_list_b: [
+    #   {% for label, attributes in lightset_map.items() %}
+    #     "{{ label -}}",
+    #   {% endfor %}
+    #   ]
+
+  sequence:
+    # LOG ENTRY FOR DEBUG
+    - alias: DEBUG Point 01
+      service: logbook.log
+      data:
+        name: DEBUG | Point 01
+        message: >
+          TYPEOF lightset_map: {{ typeof(lightset_map) -}}
+
+    - alias: DEBUG Point 02
+      service: logbook.log
+      data:
+        name: DEBUG | Point 02
+        message: >
+          TYPEOF lightset_list: {{ typeof(lightset_list) -}}
+
+    - alias: DEBUG Point 03
+      service: logbook.log
+      data:
+        name: DEBUG | Point 03
+        message: >
+          TYPEOF dummy_list: {{ typeof(dummy_list) -}}
+
+    - alias: DEBUG Point 04
+      service: logbook.log
+      data:
+        name: DEBUG | Point 04
+        message: >
+          TYPEOF dummy_list2: {{ typeof(dummy_list2) -}}
+
+    - alias: DEBUG Point 05
+      service: logbook.log
+      data:
+        name: DEBUG | Point 05
+        message: >
+          TYPEOF return_list: {{ typeof(return_list) -}}
+
+    - alias: DEBUG Point 06
+      service: logbook.log
+      data:
+        name: DEBUG | Point 06
+        message: >
+          lightset_list: {{ lightset_list }}
+
+    - alias: DEBUG Point 07
+      service: logbook.log
+      data:
+        name: DEBUG | Point 07
+        message: >
+          return_list: {{ return_list }}
+
+    - alias: Try a Repeat Block
+      repeat:
+        # Here the syntax {{ lightset_map.items() | list }} does actually
+        # produce a list for purposes of the repeat block. But when tried
+        # elsewhere it creates a 'wrapper' type of object, not a 'list' type.
+        for_each: >
+          {{ lightset_map.items() | list }}
+        sequence:
+          - alias: DEBUG | Test Point Repeat Block 01
+            service: logbook.log
+            data:
+              name: TEST Point - Repeat Block 01
+              message: >
+                lightset_item: {{ repeat.index }} = {{ repeat.item }}
+
+    - stop:
+      response_variable: return_list
+
+# ============================================================================
+
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# This version is my experiments to try to return a list made from the
+# lightset_map 2-level dictionary. Between me, ChatGPT, and Gemini none of us
+# could figure out a way to return an actual list. We just cannot work around
+# the fact that variables declared in yaml are static - they cannot be updated
+# or changed after being declared. Further - you can't even dynamically build
+# them using jinja in the way that you'd enter them as text. When trying to have
+# jinja templates output the same text you'd type into your yaml for a variable
+# HA always treats it as a string.
+
+lightset_get_list:
+  alias: Lightset - Get List of All Lightsets
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: Act as a 'getter' function to retrieve all light-sets as
+    a list. This is useful for iterating over all lightsets (e.g., to cancel
+    all timers, reset states, etc.).
+
+  mode: parallel
+
+  variables:
+    lightset_map: !include ../globals/GLOBAL_lightset_map.yaml
+    lightset_list: !include ../globals/GLOBAL_lightset_list.yaml
+
+    dummy_list: ["first", "second"]
+
+    dummy_list2:
+      - first
+      - second
+      - third
+
+    #   This fails with error:
+    # Failed to perform the action script/lightset_get_list.
+    # SecurityError: access to attribute 'append' of 'list' object is unsafe.
+    #   So this is the situation where you try to use a namespace; but that
+    # won't return a list or dictionary object either; even using
+    # a namespace object the result that comes out, as interperted by HA, is
+    # always a string.
+    return_list_a: >
+      {% set temp_list = [] %}
+      {% for key, value in lightset_map.items() %}
+        {% set _ = temp_list.append({ 'name': key } | combine(value)) %}
+      {% endfor %}
+      {{ temp_list }}
+
+    # return_list_b: [
+    #   {% for label, attributes in lightset_map.items() %}
+    #     "{{ label -}}",
+    #   {% endfor %}
+    #   ]
+
+  sequence:
+    # LOG ENTRY FOR DEBUG
+    - alias: DEBUG Point 01
+      service: logbook.log
+      data:
+        name: DEBUG | Point 01
+        message: >
+          TYPEOF lightset_map: {{ typeof(lightset_map) -}}
+
+    - alias: DEBUG Point 02
+      service: logbook.log
+      data:
+        name: DEBUG | Point 02
+        message: >
+          TYPEOF lightset_list: {{ typeof(lightset_list) -}}
+
+    - alias: DEBUG Point 03
+      service: logbook.log
+      data:
+        name: DEBUG | Point 03
+        message: >
+          TYPEOF dummy_list: {{ typeof(dummy_list) -}}
+
+    - alias: DEBUG Point 04
+      service: logbook.log
+      data:
+        name: DEBUG | Point 04
+        message: >
+          TYPEOF dummy_list2: {{ typeof(dummy_list2) -}}
+
+    - alias: DEBUG Point 05
+      service: logbook.log
+      data:
+        name: DEBUG | Point 05
+        message: >
+          TYPEOF return_list_a: {{ typeof(return_list_a) -}}
+
+    - alias: DEBUG Point 06
+      service: logbook.log
+      data:
+        name: DEBUG | Point 06
+        message: >
+          return_list_a: {{ return_list_a }}
+
+    - alias: DEBUG Point 07
+      service: logbook.log
+      data:
+        name: DEBUG | Point 07
+        message: >
+          lightset_list: {{ lightset_list }}
+
+    - stop:
+      response_variable: return_list
+
+
+
+
+
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-05-27: Version provided by chatGPT. Does not work
+
+lightset_get_list:
+  alias: Lightset - Get List
+  description: >
+    Provides all lightsets back to the caller as an iterable list of dictionaries.
+    Each dictionary item in the list includes the 'label' and optionally a selected
+    set of fields. If a field is missing, it will be filled with a fallback value,
+    which may optionally be provided by the caller via a passed in field.
+
+  mode: parallel
+
+  fields:
+    include_fields:
+      description: >
+        Optional list of fields to include (besides 'label').
+        If omitted or empty, all fields will be included.
+      example: ['state_helper', 'ambient_sensor_helper']
+      required: false
+
+    fallback_value:
+      description: >
+        Value to use when a requested field is not present in a lightset.
+      example: 'UNDEFINED'
+      default: 'UNDEFINED'
+      required: false
+
+  variables:
+    lightset_map: !include ../globals/GLOBAL_lightset_map.yaml
+
+    lightset_list: >
+      {% set list = [] %}
+      {% for label, attrs in lightset_map.items() %}
+        {% set filtered = dict(label=label) %}
+        {% if include_fields %}
+          {% for key in include_fields %}
+            {% set value = attrs[key] if key in attrs else fallback_value %}
+            {% set _ = filtered.update({key: value}) %}
+          {% endfor %}
+        {% else %}
+          {% set filtered = dict(label=label) | combine(attrs) %}
+        {% endif %}
+        {% set _ = list.append(filtered) %}
+      {% endfor %}
+      {{ list }}
+
+  sequence:
+    - stop:
+        response_variable: lightset_list
+
+# ===================================================================================================
+# Usage Example (with field filtering and fallback)
+# ===================================================================================================
+
+- service: script.lightset_convert_dict_to_list
+  data:
+    include_fields:
+      - state_helper
+      - ambient_sensor_helper
+      - unused_field
+    fallback_value: 'NO_VALUE'
+  response_variable: filtered_lightsets
+
+- repeat:
+    for_each: "{{ filtered_lightsets }}"
+    sequence:
+      - service: logbook.log
+        data:
+          name: Lightset With Fallback
+          message: >
+            {{ repeat.item.label }} | State: {{ repeat.item.state_helper }},
+            Sensor: {{ repeat.item.ambient_sensor_helper }},
+            Unused: {{ repeat.item.unused_field }}
+

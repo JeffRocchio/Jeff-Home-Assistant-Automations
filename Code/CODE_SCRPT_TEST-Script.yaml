@@ -1,0 +1,31 @@
+test_script:
+  alias: TEST Script
+  mode: parallel
+
+  sequence:
+    - alias: Lookup lightset attributes
+      service: script.lightset_get_attributes
+      data:
+        lightset_label: "Light-Set - Day-Dim | Test Set"
+        attribute_names:
+          - state_helper
+          - ambient_sensor_helper
+          - off_areas_helper
+      response_variable: lightset_attributes
+
+    - variables:
+        lset_state_helper: "{{ lightset_attributes.state_helper }}"
+        lset_areas: "{{ lightset_attributes.off_areas_helper }}"
+        lset_sensor: "{{ lightset_attributes.ambient_sensor_helper }}"
+
+    # LOG ENTRY
+    - alias: TEST - Lightset Values Returned
+      service: logbook.log
+      data:
+        name: Testing Lightset Get Attributes
+        message: >
+          LIGHTSET: {{ lightset_label }}
+          SENSOR: "{{ lset_sensor }}"
+          STATE_HELPER: "{{ lset_state_helper }}"
+          OFF_AREAS_HELPER: "{{ lset_areas }}"
+

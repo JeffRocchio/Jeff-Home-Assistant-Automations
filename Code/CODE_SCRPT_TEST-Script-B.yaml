@@ -1,0 +1,122 @@
+test_script_b:
+  alias: TEST Script-B
+  description: >
+    **Purpose**: Determine syntax for getting a 2-level Dictionary
+    response_variable type returned from a 'getter' script, and then use that
+    response_variable to drive a Repeat block. <br>
+    **RESULT** (2025-06-02): I do get TYPEOF 'dict' as the response_variable.
+    Inside each loop cycle I am able to access all elements of the dictionary.
+    So this is a success.
+
+  sequence:
+    - alias: Get Data for All Light-Sets
+      service: script.lightset_get_all
+      response_variable: lightset_map
+
+    # Show DEBUG / Inspection Info in Log Entries
+    - alias: DEBUG | Test Point 01
+      service: logbook.log
+      data:
+        name: TEST Point 01
+        message: >
+          TYPEOF lightset_map: {{ typeof(lightset_map) }}
+
+    - alias: DEBUG | Test Point 02
+      service: logbook.log
+      data:
+        name: TEST Point 02
+        message: >
+          lightset_map: {{ lightset_map }}
+
+    - repeat:
+        for_each: >
+          {{ lightset_map.items() | list }}
+        sequence:
+          - alias: DEBUG | In Repeat Block | Test Point 01
+            service: logbook.log
+            data:
+              name: Repeat Block | TEST Point 01
+              message: >
+                lightset_item: {{ repeat.index }} = {{ repeat.item }}
+
+          - alias: DEBUG | In Repeat Block | Show Lightset Label
+            service: logbook.log
+            data:
+              name: Repeat Block | Lightset Label
+              message: >
+                Index {{ repeat.index }} | Label: {{ repeat.item[0] }}
+
+          - alias: DEBUG | In Repeat Block | Show Full Entry
+            service: logbook.log
+            data:
+              name: Repeat Block | Full Dict
+              message: >
+                {{ repeat.item[1] }}
+
+          - alias: DEBUG | In Repeat Block | Show Specific Entry
+            service: logbook.log
+            data:
+              name: Repeat Block | State Helper
+              #   NOTE-1: {% set attr_name = 'state_helper' %}
+              # This is the safe way to reference the 2nd level entries by
+              # name (key) because this will work even if the names have
+              # whitespace in them. Plus you could further enhance to test for
+              # existance of the requested key.
+              #   NOTE-2: This -> repeat.item[1][attr_name] is saying to
+              # get the level-2 dictionary for the list item we are working
+              # on in this loop-cycle; then in that lower leve dictionary
+              # get the entry whose key is equal to the string stored in the
+              # [attr_name] jinja variable.
+              message: >
+                {% set attr_name = 'state_helper' %} {# Safe way in case name has spaces in it. #}
+                Label: {{ repeat.item[0] }} | State Helper: {{ repeat.item[1][attr_name] }}
+
+
+
+
+# ====================================================================================================
+test_script_b:
+  alias: TEST Script-B
+  description: >
+    **Purpose**: Trying to determine if I can get a response_variable returned from
+    a script, and have that response_variable be of TYPE 'list' when the
+    source data used by the utility I call is a dictionary.
+    **RESULT** (2025-06-02): Nope. This was my best shot. After a week of trying, including
+    consults with ChatGPT and Gemini; and of course much searching online, I
+    forced to conclude that it is not possible to convert a dictionary to a
+    list and have it returned as a list type. It will always get returned as
+    type 'wrapper.'
+
+  mode: parallel
+
+  sequence:
+    - alias: Get Data from 'getter' script
+      service: script.lightset_get_list
+      response_variable: lightset_list
+
+    # Show DEBUG / Inspection Info in Log Entries
+    - alias: DEBUG | Test Point 01
+      service: logbook.log
+      data:
+        name: TEST Point 01
+        message: >
+          TYPEOF lightset_list: {{ typeof(lightset_list) }}
+
+    - alias: DEBUG | Test Point 02
+      service: logbook.log
+      data:
+        name: TEST Point 02
+        message: >
+          lightset_list: {{ lightset_list }}
+
+    - repeat:
+        for_each: >
+          {{ lightset_list.items() }}
+        sequence:
+          - alias: DEBUG | In Repeat Block | Test Point 01
+            service: logbook.log
+            data:
+              name: Repeat Block | TEST Point 01
+              message: >
+                lightset_item: {{ repeat.index }} = {{ repeat.item }}
+

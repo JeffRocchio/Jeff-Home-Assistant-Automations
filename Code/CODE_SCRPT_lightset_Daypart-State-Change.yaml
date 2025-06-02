@@ -2,14 +2,15 @@
 # ==== Change Log ==============================================================
 # 05/10/2025: Implemented new version of 'lightset_list' structure.
 # 05/04/2025: Initial creation.
+#
 lightset_daypart_state_change:
   alias: Light Set | Daypart State Change
   description: >-
-    **Member Of**: *Light-Set / Day-Dim App.* ||
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
     **Purpose**: Upon the occurance of a change in state to the Daypart
     sensor, force a call to the 'lightset_Assess-Conditions' script
     for each sensor's light-set so that Daypart transitiions will be cause
-    the appropriate day-dim actions to occur.
+    the appropriate day-dim actions to occur. <br>
     **Note**: This script needs to be called by an automation that
     triggers on the appropriate Daypart state changes. The calling automation
     must pass in the variable: 'new_state'
@@ -20,20 +21,7 @@ lightset_daypart_state_change:
       required: true
 
   variables:
-    # The list below is defined in the form that it is based on ChatGPT:
-    # Home Assistant’s template engine really wants a plain YAML list in
-    # for_each, not a dict, and it won’t magically turn your map’s keys into
-    # one for you. The most fool-proof pattern is to define your light-sets as
-    # a list of objects up front, then loop over that list:
-    lightset_list:
-      - label: "Light-Set - Day-Dim | Test Set"
-        state_helper: input_select.lightset_test_set_state
-
-      - label: "Light-Set - Day-Dim | Living Area"
-        state_helper: input_select.lightset_living_area_state
-
-      - label: "Light-Set - Day-Dim | Kitchen"
-        state_helper: input_select.lightset_kitchen_state
+    lightset_list: !include ../globals/GLOBAL_lightset_list.yaml
 
   sequence:
     - alias: Take appropriate action based on new Daypart state

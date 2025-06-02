@@ -1,0 +1,30 @@
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-06-01: Initial implementation. Works as designed.
+
+lightset_get_all:
+  alias: Lightset - Get the Dictionary of All Lightsets
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: Act as a 'getter' function to retrieve the label and
+    attributes for all light-sets as a 2-level dictionary. This is useful for
+    iterating over all lightsets (e.g., to cancel all timers, reset states,
+    etc.). Implementing as a getter script for a level of indirection so that
+    future changes and enhancements won't be brittle.
+
+  mode: parallel
+
+  variables:
+    lightset_map: !include ../globals/GLOBAL_lightset_map.yaml
+
+  sequence:
+    # # LOG ENTRY FOR DEBUG
+    # - alias: DEBUG Point 01
+    #   service: logbook.log
+    #   data:
+    #     name: DEBUG | Point 01
+    #     message: >
+    #       TYPEOF lightset_map: {{ typeof(lightset_map) -}}
+
+    - stop:
+      response_variable: lightset_map

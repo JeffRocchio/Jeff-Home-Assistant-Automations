@@ -19,20 +19,7 @@ lightset_cancel_all:
 
   # ==== Internal variables used in this script ================================
   variables:
-    # The list below is defined in the form that it is based on ChatGPT:
-    # Home Assistant’s template engine really wants a plain YAML list in
-    # for_each, not a dict, and it won’t magically turn your map’s keys into
-    # one for you. The most fool-proof pattern is to define your light-sets as
-    # a list of objects up front, then loop over that list:
-    lightset_list:
-      - label: "Light-Set - Day-Dim | Test Set"
-        state_helper: input_select.lightset_test_set_state
-
-      - label: "Light-Set - Day-Dim | Living Area"
-        state_helper: input_select.lightset_living_area_state
-
-      - label: "Light-Set - Day-Dim | Kitchen"
-        state_helper: input_select.lightset_kitchen_state
+    lightset_list: !include ../globals/GLOBAL_lightset_list.yaml
 
   sequence:
     # Terminate any lights On/Off scripts that are in process

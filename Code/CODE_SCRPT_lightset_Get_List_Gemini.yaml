@@ -1,0 +1,187 @@
+# Developer Tools ==========================================================
+{% set lightset_map = {
+  'a':{'aa':1,'bb':1, 'cc':1},
+  'b':{'aa':1,'bb':1, 'cc':1},
+  'c':{'aa':2,'bb':1, 'cc':1}
+} %}
+{{ typeof(lightset_map) -}}
+{% for key, value in lightset_map.items() %}
+  Entry: {{ key }} | Values: {{ value -}}
+{% endfor %}
+
+# RESULT:
+dict
+  Entry: a | Values: {'aa': 1, 'bb': 1, 'cc': 1}
+  Entry: b | Values: {'aa': 1, 'bb': 1, 'cc': 1}
+  Entry: c | Values: {'aa': 2, 'bb': 1, 'cc': 1}
+# =======================================================================
+
+
+
+
+
+
+
+
+
+
+Take a look at this: https://community.home-assistant.io/t/how-to-extend-a-dict-in-jinja/408928/4
+
+make a list of kevalue pairs:
+
+{% set kvps = [('x', 1), ('y',1)] %}
+
+then create your dictionary. You will not be able to update an existing dictionary with .update({})
+
+{% set data = dict.from_keys(kvps) %}
+
+Your best option to ‘update’ an existing dictionary (current) with another dictionaries values (update)…
+
+{# make current a list of tuples #}
+{% set current = current.items() | list %}
+{# make update a list of tuples #}
+{% set update = update.items() | list %}
+{# remove keys from current that are in update #}
+{% set current = current | rejectattr('0', 'eq', update | map(attribute='0') | list) | list %}
+{{ dict.from_keys(current + update) }}
+
+EDIT: This method restricts you from using dictionary keys that start with a number and have whitespace. Keep that in mind.
+
+
+
+
+# ELEMENT OF: LIGHT-SET VIRTUAL OBJECT
+# ==== Change Log ==============================================================
+# 2025-05-29: Version as created by Google Gemini
+
+lightset_get_list:
+  alias: Lightset - Get List of All Lightsets
+  description: >
+    **Member Of**: *Light-Set / Day-Dim App.* <br>
+    **Purpose**: Act as a 'getter' function to retrieve a list of dictionaries,
+    where each dictionary represents a lightset and contains its label
+    along with a subset of its configuration attributes as requested by the caller.
+    This is useful for iterating over all lightsets and accessing specific data
+    for each (e.g., to cancel all timers, reset states, etc.).
+
+  mode: parallel
+
+  fields:
+    attribute_names:
+      required: true
+      example: '[state_helper, delay_timer_helper]'
+      description: >
+        A list of strings representing the names of the attributes to retrieve
+        for each lightset (e.g., ["ambient_sensor_helper", "state_helper"]).
+        The returned dictionary for each lightset will also include a 'label' key.
+
+  sequence:
+    - variables:
+        # Read in the list of light-set attribute dictionaries from the global map.
+        # This will load the content of GLOBAL_Lightset_Map.yaml directly
+        # into the 'lightset_map' variable.
+        lightset_map: !include ../globals/GLOBAL_lightset_map.yaml
+
+        # Initialize an empty list to store the final results.
+        # We use a namespace to allow modification of 'results_list' inside the loop.
+        ns_outer: >
+          {% set ns = namespace(results_list = []) %}
+          {{ ns }} # Return the namespace object itself
+
+        # Iterate over each lightset (label and its attributes dictionary)
+        # in the lightset_map.
+        # For each lightset, build a new dictionary containing only the
+        # requested attributes, plus the lightset's label.
+        _build_results: >
+          {% for label, entry in lightset_map.items() %}
+            {# Initialize an inner namespace to build the attributes dictionary dynamically #}
+            {% set ns_inner = namespace(attributes_dict = {}) %}
+
+            {# Iterate over the requested attribute names and build the dictionary #}
+            {% for key in attribute_names %}
+              {% set value = entry[key] if key in entry else "UNDEFINED" %}
+              {% set ns_inner.attributes_dict = dict(ns_inner.attributes_dict, **{ key: value }) %}
+            {% endfor %}
+
+            {# Merge the label dictionary and the dynamically built attributes dictionary #}
+            {# We use the dict() constructor with unpacking to merge dictionaries #}
+            {% set merged_dict = dict({'label': label}, **ns_inner.attributes_dict) %}
+
+            {# Append the merged dictionary to our outer results list #}
+            {% set ns_outer.results_list = ns_outer.results_list + [merged_dict] %}
+          {% endfor %}
+          {{ '' }} # Return an empty string to avoid accidental output from this variable block
+
+        # The final list of dictionaries to be returned is now in the namespace object,
+        # we now store it into a yaml variable so that it can be assigned to the
+        # response_variable.
+        all_lightsets_with_attributes: "{{ ns_outer.results_list }}"
+
+    # Return the list of lightset dictionaries to the caller.
+    - stop:
+      response_variable: all_lightsets_with_attributes
+
+# ChatGPT's Answer: - does not work
+lightset_get_list:
+  alias: Lightset - Get List of All Lightsets
+  mode: parallel
+
+  fields:
+    attribute_names:
+      required: true
+      description: >
+        List of attribute names to include for each lightset.
+
+  sequence:
+    - stop:
+        response_variable: lightsets_result
+        response: >
+          {% set lightset_map = namespace(data = {} ) %}
+          {% set lightset_map.data = include('globals/GLOBAL_lightset_map.yaml') %}
+          {% set ns = namespace(results = []) %}
+          {% for label, entry in lightset_map.data.items() %}
+            {% set base = dict(label=label) %}
+            {% for attr in attribute_names %}
+              {% set base = base | combine({ attr: entry[attr] if attr in entry else 'UNDEFINED' }) %}
+            {% endfor %}
+            {% set ns.results = ns.results + [base] %}
+          {% endfor %}
+          {{ ns.results }}
+
+
+
+# =======================================================================================================
+# Example of How to Use the Above
+# =======================================================================================================
+
+my_batch_processing_automation:
+  sequence:
+    - service: script.lightset_get_all_labels
+      data:
+        attribute_names: ["state_helper", "delay_timer_helper"] # Request specific attributes
+      id: get_all_lightsets_data
+      response_variable: all_lightsets_data # This variable will hold the list of dictionaries
+
+    - service: logbook.log
+      data:
+        name: All Lightsets Data
+        message: "Retrieved data: {{ all_lightsets_data }}"
+
+    - repeat:
+        count: "{{ all_lightsets_data | length }}"
+        sequence:
+          - variables:
+              current_lightset: "{{ all_lightsets_data[repeat.index - 1] }}"
+          - service: logbook.log
+            data:
+              name: Processing Lightset
+              message: >
+                Processing: {{ current_lightset.label }}
+                State Helper: {{ current_lightset.state_helper }}
+                Delay Timer: {{ current_lightset.delay_timer_helper }}
+
+          # Now you can use the attributes directly from 'current_lightset'
+          # For example, to cancel the timer for this lightset:
+          # - service: timer.cancel
+          #   target:
+          #     entity_id: "{{ current_lightset.delay_timer_helper }}"
